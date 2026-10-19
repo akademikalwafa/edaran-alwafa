@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SE Akademik — STIS Al Wafa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div id="login"><div class="lhero"><b>STIS AL WAFA</b><div><h2>Selamat Datang Kembali!</h2><p>Kelola surat edaran akademik dengan cepat dan rapi. Nomor otomatis, PDF otomatis, riwayat tersimpan.</p></div><small>© 2026 STIS Al Wafa</small></div>
+<form id="lf" class="lform"><div class="logo">SE</div><h1>Masuk</h1><p class="mut">Silakan masukkan akun akademik Anda</p>
+<label>Username</label><input id="lu" autocomplete="username" required>
+<label>Kata Sandi</label><input id="lp" type="password" autocomplete="current-password" required>
+<div id="lerr" class="err" hidden></div><button class="btn" id="lb">Masuk →</button></form></div>
+<div id="app" hidden><aside id="nav"></aside>
+<main><header><span id="who"></span><button id="out" class="ghost">Keluar</button></header>
+<section id="pg-buat" class="pg"></section><section id="pg-riwayat" class="pg"></section><section id="pg-atur" class="pg"></section></main></div>
+<dialog id="dlg"></dialog><div id="toast"></div>
+<script src="js/config.js"></script><script src="js/app.js"></script>
+</body></html>
