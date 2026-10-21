@@ -22,6 +22,9 @@ const tipe=k=>/(^|_)rentang(_|$)/.test(k)?'range':/(^|_)tanggal(_|$)/.test(k)?'d
 const idt=s=>{const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?(+m[3])+' '+BLN[+m[2]-1]+' '+m[1]:s};
 const RG=/^\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/;
 const rg=(v,at,m)=>{const a=String(v||'').split('|');return `<div style="display:flex;gap:6px;align-items:center;margin:${m}"><input type="date" ${at} data-p="0" value="${a[0]||''}" style="margin:0"><span>s/d</span><input type="date" ${at} data-p="1" value="${a[1]||''}" style="margin:0"></div>`};
+const lst=k=>(S.opsi||[]).filter(o=>o.k===k);
+const isSel=k=>['semester','tahun_akademik','perihal'].includes(k)||lst(k).length>0;
+const selF=(at,k,v)=>`<select ${at}><option value="">— pilih —</option>${lst(k).map(o=>`<option value="${esc(o.v)}" ${o.v===v?'selected':''}>${esc(o.v)}</option>`).join('')}${v&&!lst(k).some(o=>o.v===v)?`<option value="${esc(v)}" selected>${esc(v)}</option>`:''}<option value="__baru">＋ Tambah pilihan baru…</option></select>`;
 const pk=t=>{const p=(J()||{skema:{}}).skema.pakai;if(!p)return true;return t==='tgl'?p.some(k=>k==='tanggal_surat'||k==='kota_tanggal'):t==='perihal'?p.includes('perihal'):p.some(k=>/pejabat$/.test(k))};
 const isAd=()=>S&&S.user.role==='Admin';
 
@@ -57,9 +60,9 @@ function drawBuat(){
   const body=[()=>`<div class="card"><h3>Pilih Jenis Surat</h3><p class="mut">Pilih kategori surat edaran yang akan diterbitkan.</p><div class="jg">${S.jenis.filter(x=>x.aktif).map(x=>`<button class="jc ${x.id===W.jenis?'on':''}" data-act="pilih" data-id="${x.id}">${esc(x.nama)}</button>`).join('')||'<p class="mut">Belum ada jenis surat aktif. Admin dapat menambahkannya di Pengaturan.</p>'}</div></div>`,
   ()=>`<div class="card"><h3>${esc(j.nama)}</h3><div class="row2">
     ${pk('tgl')?`<div><label>Tanggal Surat</label><input type="date" data-f="tanggal" value="${W.v.tanggal}"></div>`:''}
-    ${pk('perihal')?`<div><label>Perihal</label><input data-f="perihal" value="${esc(W.v.perihal)}"></div>`:''}
+    ${pk('perihal')?`<div><label>Perihal</label>${selF('data-f="perihal"','perihal',W.v.perihal)}</div>`:''}
     ${pk('pej')?`<div><label>Pejabat Penanda Tangan</label><select data-f="pejabat"><option value="">— pilih —</option>${S.pejabat.filter(x=>x.aktif).map(x=>`<option value="${x.id}" ${x.id===W.v.pejabat?'selected':''}>${esc(x.nama)} (${esc(x.jabatan)})</option>`).join('')}</select></div>`:''}
-    ${(j.skema.fields||[]).map(f=>{const t=tipe(f.k),v=esc(W.v.isian[f.k]||'');return `<div><label>${esc(f.label)}</label>${t==='area'?`<textarea rows="3" data-k="${f.k}">${v}</textarea>`:t==='range'?rg(W.v.isian[f.k],`data-k="${f.k}"`,'4px 0 12px'):`<input type="${t}" data-k="${f.k}" value="${v}">`}</div>`}).join('')}</div>
+    ${(j.skema.fields||[]).map(f=>{const t=tipe(f.k),v=esc(W.v.isian[f.k]||'');return `<div><label>${esc(f.label)}</label>${isSel(f.k)?selF(`data-k="${f.k}"`,f.k,W.v.isian[f.k]):t==='area'?`<textarea rows="3" data-k="${f.k}">${v}</textarea>`:t==='range'?rg(W.v.isian[f.k],`data-k="${f.k}"`,'4px 0 12px'):`<input type="${t}" data-k="${f.k}" value="${v}">`}</div>`}).join('')}</div>
     ${(j.skema.tables||[]).map(t=>tbl(t)).join('')}
     <div class="bar"><button class="ghost" data-act="back">← Ganti Jenis</button><button class="ghost" data-act="draft">Simpan Draft</button><button class="btn" data-act="lanjut">Lanjut ke Pratinjau →</button></div></div>`,
   ()=>`<div class="card"><h3>Pratinjau Surat</h3><p class="mut">Nomor surat: <b>${esc(nextNo())}</b> — pratinjau memakai template asli.</p><div id="pvbox"></div>
@@ -79,6 +82,12 @@ function setV(t){if(t.dataset.f)W.v[t.dataset.f]=t.value;
   else if(t.dataset.k)put(W.v.isian,t.dataset.k,t);
   else if(t.dataset.tn)put(W.v.isian[t.dataset.tn][+t.dataset.i],t.dataset.c,t);
   drawSide()}
+async function tambahOpsi(t){const key=t.dataset.f||t.dataset.k,nm=prompt('Tambah pilihan baru:');
+  if(!nm||!nm.trim()){drawBuat();return}
+  const val=nm.trim();let ex=lst(key).find(o=>o.v.toLowerCase()===val.toLowerCase());
+  if(!ex){ex={id:'t'+Date.now(),k:key,v:val};(S.opsi=S.opsi||[]).push(ex);save();
+    api('saveOpsi',{kunci:key,nilai:val}).then(r=>{ex.id=r.id;save()}).catch(e=>toast(e.message,1))}
+  if(t.dataset.f)W.v[key]=ex.v;else W.v.isian[key]=ex.v;drawBuat()}
 let PV=0;
 const payload=()=>({jenis:W.jenis,tanggal:W.v.tanggal,perihal:W.v.perihal||J().nama,pejabat:W.v.pejabat,isian:W.v.isian});
 async function loadPv(){const n=++PV;W.pv=null;W.pverr='';drawPv();
@@ -107,13 +116,14 @@ function drawRl(){const q=R.q.toLowerCase(),f=S.riwayat.filter(r=>(!q||(r.no+' '
   <div class="bar" style="margin-top:10px;align-items:center"><small>${f.length} surat</small><button class="ghost sm" data-act="pg" data-d="-1">‹</button><b>${R.p}/${pg}</b><button class="ghost sm" data-act="pg" data-d="1">›</button></div>`}
 
 // ---------- Pengaturan (Admin) ----------
-function drawAtur(){const tabs=[['jenis','Jenis Surat & Template'],['pejabat','Direktori Pejabat'],['nomor','Penomoran'],['user','Pengguna']];
+function drawAtur(){const tabs=[['jenis','Jenis Surat & Template'],['pejabat','Direktori Pejabat'],['nomor','Penomoran'],['user','Pengguna'],['opsi','Pilihan Isian']];
   const L={jenis:()=>S.jenis.map(x=>`<tr><td>${esc(x.nama)}</td><td>${(x.skema.fields||[]).length+(x.skema.tables||[]).length} kolom</td><td><span class="pill ${x.aktif?'ok':'x'}">${x.aktif?'Aktif':'Nonaktif'}</span></td><td><button class="ghost sm" data-act="ej" data-id="${x.id}">Edit</button> <button class="ghost sm" data-act="tj" data-id="${x.id}">${x.aktif?'Nonaktifkan':'Aktifkan'}</button></td></tr>`).join(''),
   pejabat:()=>S.pejabat.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.jabatan)}</td><td>${esc(x.nidn)}</td><td><button class="ghost sm" data-act="ep" data-id="${x.id}">Edit</button> <button class="ghost sm" data-act="tp" data-id="${x.id}">${x.aktif?'Nonaktifkan':'Aktifkan'}</button></td></tr>`).join(''),
   nomor:()=>S.nomor.map(x=>`<tr><td>${x.tahun}</td><td>${x.last}</td><td><button class="ghost sm" data-act="en" data-y="${x.tahun}">Ubah</button></td></tr>`).join(''),
   user:()=>S.users.map(x=>`<tr><td>${esc(x.u)}</td><td>${esc(x.n)}</td><td>${x.role}</td><td><span class="pill ${x.aktif?'ok':'x'}">${x.aktif?'Aktif':'Nonaktif'}</span></td><td>${x.role==='Admin'?'':`<button class="ghost sm" data-act="rp" data-id="${x.id}">Reset Sandi</button> <button class="ghost sm" data-act="tu" data-id="${x.id}">${x.aktif?'Nonaktifkan':'Aktifkan'}</button>`}</td></tr>`).join('')};
+  L.opsi=()=>(S.opsi||[]).map(x=>`<tr><td>${esc(x.k)}</td><td>${esc(x.v)}</td><td><button class="ghost sm" data-act="dopsi" data-id="${x.id}">Hapus</button></td></tr>`).join('');
   const H={jenis:'<th>Nama</th><th>Kolom</th><th>Status</th><th></th>',pejabat:'<th>Nama</th><th>Jabatan</th><th>NIDN</th><th></th>',nomor:'<th>Tahun</th><th>Nomor Terakhir</th><th></th>',user:'<th>Username</th><th>Nama</th><th>Peran</th><th>Status</th><th></th>'};
-  const AD={jenis:'+ Jenis Surat',pejabat:'+ Pejabat',nomor:'+ Tahun',user:'+ Pengguna'};
+  const AD={jenis:'+ Jenis Surat',pejabat:'+ Pejabat',nomor:'+ Tahun',user:'+ Pengguna'};H.opsi='<th>Kolom</th><th>Pilihan</th><th></th>';AD.opsi='+ Pilihan';
   $('#pg-atur').innerHTML=`<h1>Pengaturan Sistem</h1><div class="tabs">${tabs.map(t=>`<button data-act="tab" data-t="${t[0]}" class="${TAB===t[0]?'on':''}">${t[1]}</button>`).join('')}</div><div class="card wrap"><div class="bar" style="margin-bottom:10px"><button class="btn sm" data-act="add${TAB}">${AD[TAB]}</button></div><table><tr>${H[TAB]}</tr>${L[TAB]()}</table></div>`}
 function form(title,fields,onOk){const d=$('#dlg');
   d.innerHTML=`<h3>${title}</h3><form method="dialog" id="df">${fields.map(f=>`<label>${f.l}</label><input name="${f.k}" type="${f.t||'text'}" value="${esc(f.v||'')}">`).join('')}<div class="bar"><button type="button" class="ghost" id="dc">Batal</button><button class="btn" id="dk">Simpan</button></div></form>`;
@@ -129,8 +139,8 @@ async function jenisForm(x){form(x?'Edit Jenis Surat':'Tambah Jenis Surat',[{k:'
       await api('saveJenis',{id:x&&x.id,nama:o.nama,doc:o.doc,skema:sc.skema,aktif:x?x.aktif:true});toast('Jenis surat tersimpan')})},50)})}
 
 // ---------- Event delegation ----------
-document.addEventListener('input',e=>{const t=e.target;if(t.dataset.r){R[t.dataset.r]=t.value;R.p=1;drawRl()}else if(W.v&&(t.dataset.f||t.dataset.k||t.dataset.tn)){setV(t);localStorage.setItem('se_draft',JSON.stringify({j:W.jenis,v:W.v}))}});
-document.addEventListener('change',e=>{if(e.target.dataset.r){R[e.target.dataset.r]=e.target.value;R.p=1;drawRl()}});
+document.addEventListener('input',e=>{const t=e.target;if(t.dataset.r){R[t.dataset.r]=t.value;R.p=1;drawRl()}else if(t.value==='__baru'){}else if(W.v&&(t.dataset.f||t.dataset.k||t.dataset.tn)){setV(t);localStorage.setItem('se_draft',JSON.stringify({j:W.jenis,v:W.v}))}});
+document.addEventListener('change',e=>{if(e.target.dataset.r){R[e.target.dataset.r]=e.target.value;R.p=1;drawRl()}else if(e.target.value==='__baru')tambahOpsi(e.target)});
 document.addEventListener('click',async e=>{
   if(e.target.type==='date'){try{e.target.showPicker()}catch(x){}}
   const nb=e.target.closest('#nav button');if(nb)return go(nb.dataset.p);
@@ -150,6 +160,8 @@ document.addEventListener('click',async e=>{
   else if(a==='pdf'){b.disabled=true;try{const r=await api('pdf',{id});dl(r.name,r.b64)}catch(x){toast(x.message,1)}b.disabled=false}
   else if(a==='batal'){const al=prompt('Alasan pembatalan:');if(al===null)return;const r=S.riwayat.find(x=>x.id===id);r.status='Dibatalkan';drawRiwayat();save();
     try{await api('batal',{id,alasan:al})}catch(x){r.status='Aktif';drawRiwayat();toast(x.message,1)}}
+  else if(a==='addopsi')form('Pilihan baru',[{k:'kunci',l:'Kolom (semester / tahun_akademik / perihal / nama placeholder)',v:'perihal'},{k:'nilai',l:'Teks pilihan'}],o=>api('saveOpsi',{kunci:o.kunci,nilai:o.nilai}));
+  else if(a==='dopsi'){S.opsi=S.opsi.filter(x=>x.id!==id);drawAtur();save();api('delOpsi',{id}).catch(x=>{toast(x.message,1);refresh()})}
   else if(a==='tab'){TAB=b.dataset.t;drawAtur()}
   else if(a==='addjenis')jenisForm();
   else if(a==='ej')jenisForm(S.jenis.find(x=>x.id===id));
