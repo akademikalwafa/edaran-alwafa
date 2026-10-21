@@ -18,8 +18,10 @@ const save=()=>localStorage.setItem('se_state',JSON.stringify(S));
 function dl(name,b64){const b=atob(b64),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([u],{type:'application/pdf'}));a.download=name;a.click()}
 const pad=n=>String(n).padStart(3,'0'),today=()=>new Date().toISOString().slice(0,10);
-const tipe=k=>/(^|_)tanggal(_|$)/.test(k)?'date':/_jam$/.test(k)?'time':/_biaya$/.test(k)?'number':/_teks$/.test(k)?'area':'text';
+const tipe=k=>/(^|_)rentang(_|$)/.test(k)?'range':/(^|_)tanggal(_|$)/.test(k)?'date':/_jam$/.test(k)?'time':/_biaya$/.test(k)?'number':/_teks$/.test(k)?'area':'text';
 const idt=s=>{const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?(+m[3])+' '+BLN[+m[2]-1]+' '+m[1]:s};
+const RG=/^\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/;
+const rg=(v,at,m)=>{const a=String(v||'').split('|');return `<div style="display:flex;gap:6px;align-items:center;margin:${m}"><input type="date" ${at} data-p="0" value="${a[0]||''}" style="margin:0"><span>s/d</span><input type="date" ${at} data-p="1" value="${a[1]||''}" style="margin:0"></div>`};
 const pk=t=>{const p=(J()||{skema:{}}).skema.pakai;if(!p)return true;return t==='tgl'?p.some(k=>k==='tanggal_surat'||k==='kota_tanggal'):t==='perihal'?p.includes('perihal'):p.some(k=>/pejabat$/.test(k))};
 const isAd=()=>S&&S.user.role==='Admin';
 
@@ -49,7 +51,7 @@ const J=()=>S.jenis.find(x=>x.id===W.jenis);
 function nextNo(){const y=+(W.v.tanggal||today()).slice(0,4),m=+(W.v.tanggal||today()).slice(5,7),n=S.nomor.find(x=>x.tahun===y);
   return pad((n?n.last:0)+1)+'/'+S.cfg.kode_surat+'/'+ROM[m-1]+'/'+y}
 function problems(){const p=[],j=J();if(pk('perihal')&&!W.v.perihal.trim())p.push('Perihal');if(pk('pej')&&!W.v.pejabat)p.push('Pejabat');
-  ((j&&j.skema.fields)||[]).forEach(f=>{if(!String(W.v.isian[f.k]||'').trim())p.push(f.label)});return p}
+  ((j&&j.skema.fields)||[]).forEach(f=>{const x=String(W.v.isian[f.k]||'').trim();if(!x||(tipe(f.k)==='range'&&(!RG.test(x)||x.split('|')[1]<x.split('|')[0])))p.push(f.label)});return p}
 function drawBuat(){
   const st=W.step,j=J(),el=$('#pg-buat');
   const body=[()=>`<div class="card"><h3>Pilih Jenis Surat</h3><p class="mut">Pilih kategori surat edaran yang akan diterbitkan.</p><div class="jg">${S.jenis.filter(x=>x.aktif).map(x=>`<button class="jc ${x.id===W.jenis?'on':''}" data-act="pilih" data-id="${x.id}">${esc(x.nama)}</button>`).join('')||'<p class="mut">Belum ada jenis surat aktif. Admin dapat menambahkannya di Pengaturan.</p>'}</div></div>`,
@@ -57,27 +59,35 @@ function drawBuat(){
     ${pk('tgl')?`<div><label>Tanggal Surat</label><input type="date" data-f="tanggal" value="${W.v.tanggal}"></div>`:''}
     ${pk('perihal')?`<div><label>Perihal</label><input data-f="perihal" value="${esc(W.v.perihal)}"></div>`:''}
     ${pk('pej')?`<div><label>Pejabat Penanda Tangan</label><select data-f="pejabat"><option value="">— pilih —</option>${S.pejabat.filter(x=>x.aktif).map(x=>`<option value="${x.id}" ${x.id===W.v.pejabat?'selected':''}>${esc(x.nama)} (${esc(x.jabatan)})</option>`).join('')}</select></div>`:''}
-    ${(j.skema.fields||[]).map(f=>{const t=tipe(f.k),v=esc(W.v.isian[f.k]||'');return `<div><label>${esc(f.label)}</label>${t==='area'?`<textarea rows="3" data-k="${f.k}">${v}</textarea>`:`<input type="${t}" data-k="${f.k}" value="${v}">`}</div>`}).join('')}</div>
+    ${(j.skema.fields||[]).map(f=>{const t=tipe(f.k),v=esc(W.v.isian[f.k]||'');return `<div><label>${esc(f.label)}</label>${t==='area'?`<textarea rows="3" data-k="${f.k}">${v}</textarea>`:t==='range'?rg(W.v.isian[f.k],`data-k="${f.k}"`,'4px 0 12px'):`<input type="${t}" data-k="${f.k}" value="${v}">`}</div>`}).join('')}</div>
     ${(j.skema.tables||[]).map(t=>tbl(t)).join('')}
     <div class="bar"><button class="ghost" data-act="back">← Ganti Jenis</button><button class="ghost" data-act="draft">Simpan Draft</button><button class="btn" data-act="lanjut">Lanjut ke Pratinjau →</button></div></div>`,
-  ()=>`<div class="card"><h3>Pratinjau & Konfirmasi</h3><p>Nomor surat: <b>${esc(nextNo())}</b></p><p>Jenis: ${esc(j.nama)}<br>Perihal: ${esc(W.v.perihal||j.nama)}<br>Tanggal: ${idt(W.v.tanggal)}</p><p class="mut">Nomor dipastikan server setelah PDF berhasil dibuat (±5–20 detik).</p>
-    <div class="bar"><button class="ghost" data-act="edit">← Ubah</button><button class="btn" id="mk" data-act="buat">Buat Surat</button></div></div>`,
+  ()=>`<div class="card"><h3>Pratinjau Surat</h3><p class="mut">Nomor surat: <b>${esc(nextNo())}</b> — pratinjau memakai template asli.</p><div id="pvbox"></div>
+    <div class="bar" style="margin-top:12px"><button class="ghost" data-act="edit">← Ubah</button><button class="btn" id="mk" data-act="buat">Buat Surat</button></div></div>`,
   ()=>`<div class="card"><h3>✅ Surat berhasil dibuat</h3><p>Nomor: <b>${esc(W.res.row.no)}</b><br>${esc(W.res.name)}</p><div class="bar"><button class="ghost" data-act="baru">Buat Surat Lain</button><button class="btn" data-act="unduh">Unduh PDF</button></div></div>`][st-1]();
   el.innerHTML=`<div class="top"><div><small>STIS AL WAFA - AKADEMIK</small><h1>Buat Surat Edaran Akademik</h1></div><ol class="steps">${['Pilih Jenis','Isi Formulir','Pratinjau','Hasil'].map((t,i)=>`<li data-n="${i+1}" class="${st===i+1?'on':st>i+1?'done':''}"> ${t}</li>`).join('')}</ol></div><div class="grid2"><div>${body}</div><aside id="side"></aside></div>`;
-  drawSide()}
+  drawSide();if(st===3)drawPv()}
 function tbl(t){const rows=W.v.isian[t.n]||(W.v.isian[t.n]=[{}]);
   return `<h3 style="margin-top:14px">${esc(t.n.replace(/_/g,' '))}</h3><div class="wrap"><table><tr><th>No</th>${t.cols.map(c=>`<th>${esc(c.label)}</th>`).join('')}<th></th></tr>
-  ${rows.map((r,i)=>`<tr><td>${i+1}</td>${t.cols.map(c=>`<td><input type="${tipe(c.k)==='area'?'text':tipe(c.k)}" data-tn="${t.n}" data-i="${i}" data-c="${c.k}" value="${esc(r[c.k]||'')}"></td>`).join('')}<td><button class="ghost sm" data-act="del" data-tn="${t.n}" data-i="${i}">✕</button></td></tr>`).join('')}</table></div><button class="ghost sm" data-act="add" data-tn="${t.n}">+ Tambah Baris</button>`}
+  ${rows.map((r,i)=>`<tr><td>${i+1}</td>${t.cols.map(c=>`<td>${tipe(c.k)==='range'?rg(r[c.k],`data-tn="${t.n}" data-i="${i}" data-c="${c.k}"`,'0'):`<input type="${tipe(c.k)==='area'?'text':tipe(c.k)}" data-tn="${t.n}" data-i="${i}" data-c="${c.k}" value="${esc(r[c.k]||'')}">`}</td>`).join('')}<td><button class="ghost sm" data-act="del" data-tn="${t.n}" data-i="${i}">✕</button></td></tr>`).join('')}</table></div><button class="ghost sm" data-act="add" data-tn="${t.n}">+ Tambah Baris</button>`}
 function drawSide(){const j=J(),p=W.step>1&&j?problems():[],pj=S.pejabat.find(x=>x.id===(W.v&&W.v.pejabat));
   $('#side').innerHTML=`<div class="card"><small>NOMOR SURAT BERIKUTNYA</small><h2>${pad((S.nomor.find(x=>x.tahun===+W.v.tanggal.slice(0,4))||{last:0}).last+1)}</h2></div>
   <div class="card"><h3>Checklist Validasi</h3><ul class="chk"><li class="y">Format nomor sesuai standar</li><li class="${!pk('pej')||W.v.pejabat?'y':'n'}">Pejabat penanda tangan dipilih</li><li class="${W.step>1&&!p.length?'y':'n'}">Semua kolom wajib terisi</li></ul></div>
-  <div class="card"><h3>Pratinjau</h3><div class="paper"><b>SEKOLAH TINGGI ILMU SYARIAH</b><h4>STIS AL WAFA BOGOR</h4><hr><u>SURAT EDARAN AKADEMIK</u><br><small>Nomor: ${esc(nextNo())}</small><p>Perihal: ${esc(W.v.perihal||'…')}</p><p style="text-align:right">${esc(S.cfg.kota)}, ${idt(W.v.tanggal)}<br><br><b>${esc(pj?pj.nama:'…')}</b></p></div></div>`}
-function setV(t){if(t.dataset.f){W.v[t.dataset.f]=t.value;}
-  else if(t.dataset.k)W.v.isian[t.dataset.k]=t.value;
-  else if(t.dataset.tn)W.v.isian[t.dataset.tn][+t.dataset.i][t.dataset.c]=t.value;
+  <div class="card"><h3>Pratinjau</h3><p class="mut" style="font-size:13px">Pratinjau surat asli (dari template Google Docs) tampil di langkah 3.</p>${W.step===2?'<button class="ghost" style="width:100%" data-act="lanjut">👁 Lihat Pratinjau Surat</button>':''}</div>`}
+function put(o,k,t){if(t.dataset.p!=null){const a=String(o[k]||'|').split('|');a[+t.dataset.p]=t.value;o[k]=a.join('|')}else o[k]=t.value}
+function setV(t){if(t.dataset.f)W.v[t.dataset.f]=t.value;
+  else if(t.dataset.k)put(W.v.isian,t.dataset.k,t);
+  else if(t.dataset.tn)put(W.v.isian[t.dataset.tn][+t.dataset.i],t.dataset.c,t);
   drawSide()}
+let PV=0;
+const payload=()=>({jenis:W.jenis,tanggal:W.v.tanggal,perihal:W.v.perihal||J().nama,pejabat:W.v.pejabat,isian:W.v.isian});
+async function loadPv(){const n=++PV;W.pv=null;W.pverr='';drawPv();
+  try{const r=await api('preview',payload());if(n!==PV)return;const b=atob(r.b64),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);W.pv=URL.createObjectURL(new Blob([u],{type:'application/pdf'}))}catch(e){if(n!==PV)return;W.pverr=e.message}
+  drawPv()}
+function drawPv(){const el=$('#pvbox');if(!el||W.step!==3)return;
+  el.innerHTML=W.pverr?`<p class="err">${esc(W.pverr)}</p>`:W.pv?`<iframe src="${W.pv}" style="width:100%;height:72vh;border:1px solid var(--l);border-radius:8px"></iframe><p><a href="${W.pv}" target="_blank">Buka pratinjau di tab baru</a></p>`:'<p class="mut">⏳ Menyiapkan pratinjau dari template… (±5–15 detik)</p>'}
 async function doBuat(){const b=$('#mk');b.disabled=true;b.textContent='Membuat PDF…';
-  try{const r=await api('buat',{jenis:W.jenis,tanggal:W.v.tanggal,perihal:W.v.perihal||J().nama,pejabat:W.v.pejabat,isian:W.v.isian});
+  try{const r=await api('buat',payload());
     S.riwayat.unshift(r.row);const n=S.nomor.find(x=>x.tahun===r.nomor.tahun);n?n.last=r.nomor.last:S.nomor.push(r.nomor);save();
     W.res=r;W.step=4;drawBuat();drawRiwayat();dl(r.name,r.b64)}catch(e){toast(e.message,1);b.disabled=false;b.textContent='Buat Surat'}}
 
@@ -128,8 +138,8 @@ document.addEventListener('click',async e=>{
   if(a==='pilih'){W.jenis=id;const dr=ld('se_draft',null);if(dr&&dr.j===id)W.v=dr.v;else W.v={tanggal:today(),perihal:'',pejabat:'',isian:{}};W.step=2;drawBuat()}
   else if(a==='back'){W.step=1;drawBuat()}
   else if(a==='draft'){localStorage.setItem('se_draft',JSON.stringify({j:W.jenis,v:W.v}));toast('Draft tersimpan di perangkat ini')}
-  else if(a==='lanjut'){const p=problems();if(p.length)return toast('Lengkapi: '+p.join(', '),1);W.step=3;drawBuat()}
-  else if(a==='edit'){W.step=2;drawBuat()}
+  else if(a==='lanjut'){const p=problems();if(p.length)return toast('Lengkapi: '+p.join(', '),1);W.step=3;drawBuat();loadPv()}
+  else if(a==='edit'){PV++;W.step=2;drawBuat()}
   else if(a==='buat')doBuat();
   else if(a==='unduh')dl(W.res.name,W.res.b64);
   else if(a==='baru'){localStorage.removeItem('se_draft');newWiz();drawBuat()}
